@@ -31,7 +31,11 @@ yarn-error.*
 *.pem
 
 # local env files
+# ★鍵はリポジトリに入れない（正本 §0.10 / grow_mobile_spec §7）。
+# .env.demo（デモ環境）と .env.prod（本番）は git 管理外。コミットするのは .env.example だけ。
 .env*.local
+.env.demo
+.env.prod
 
 # typescript
 *.tsbuildinfo

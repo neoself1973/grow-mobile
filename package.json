@@ -1,12 +1,22 @@
 {
   "name": "grow-mobile",
   "version": "1.0.0",
-  "main": "index.ts",
+  "main": "expo-router/entry",
   "dependencies": {
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@supabase/supabase-js": "^2.113.0",
     "expo": "~57.0.19",
+    "expo-constants": "~57.0.17",
+    "expo-linking": "~57.0.9",
+    "expo-router": "~57.0.18",
+    "expo-secure-store": "~57.0.3",
     "expo-status-bar": "~57.0.1",
     "react": "19.2.3",
-    "react-native": "0.86.3"
+    "react-dom": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.0",
+    "react-native-web": "^0.21.2"
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
@@ -16,7 +26,11 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "start:demo": "set -a; . ./.env.demo; set +a; APP_PROFILE=demo expo start",
+    "web:demo": "set -a; . ./.env.demo; set +a; APP_PROFILE=demo expo start --web",
+    "start:personal": "set -a; . ./.env.prod; set +a; APP_PROFILE=personal expo start",
+    "typecheck": "tsc --noEmit"
   },
   "private": true
 }
