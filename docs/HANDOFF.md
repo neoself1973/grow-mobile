@@ -9,9 +9,10 @@
 
 ---
 
-## 現在地（2026-09-07・段5-0b 完了）
+## 現在地（2026-09-07・段5 完了。**push・公開は未実施＝人間の作業**）
 
-**5-0 で見つけた「圏外だと画面が進まない」を直した**（5-0b）。5-1 以降（棚の条件・ビルド2系統・APK・実機動画）に進む。
+段5-0b（オフラインの是正）・5-1（棚の条件）・5-2（ビルド2系統）・5-3（§12-7 の機械照合）・5-4（APK）・5-5（動画）・5-6（README）まで完了。
+**残っているのは人間の作業**: GitHub リポジトリの作成と remote 設定・push・Releases への APK の公開・iOS 実機への配置（無料個人チームの署名は7日で切れる）。
 
 ## 現在地（2026-09-07・段4 完了時点）
 
@@ -68,6 +69,23 @@
 - **通信断の表示**（`08`）: `POST /api/chat/summarize` が届かないとき「**通信に失敗しました。接続を確認して、もう一度お試しください。**」。**iOS シミュレータには機内モードが無い**ため、API の宛先を到達不能なホストに差し替えて `fetch` を実際に失敗させた（Supabase 側は到達可能＝積み上げの保存は成功する条件で確認）。同じ画面で `weekly/generate` の失敗は**何も表示せず**コンソールだけに出る（graceful）ことも確認できた。
 - **課金**: 本段で対話 API は呼んでいない（`weekly/generate` の no-op のみ）。**Anthropic の呼び出し 0 回。**
 - **本番マーカー** は `git grep` で **1件＝`scripts/check-demo-build.sh` のみ**。
+
+## 段5-1〜5-6 の結果（2026-09-07）
+
+- **5-1 棚の条件を Web に揃えた**: Web は「結論0 かつ勝ち筋の**行が**0件（status 不問）」で隠す（`app/dashboard/page.tsx:804`）。確定数で判定していたのを取得済みの行数に変更（新しいクエリは足していない）。実測＝結論0・仮説1行の状態で**棚が出て 0・0・0**（`15-shelf-condition-matches-web.png`）。
+- **5-2 ビルド2系統**: `app.config.ts` の `APP_PROFILE` で解決することを確認。`demo` → name `Grow (demo)` / `extra.profile='demo'`、`personal` → name `Grow` / `extra.profile='personal'`。**personal は設定の解決だけを確認し、本番接続の実ビルドは作っていない**（`.env.prod` も作っていない）。依存は追加していない。
+- **5-3 §12-7 の機械照合（実物）**: demo の APK に対して `scripts/check-demo-build.sh` を実行。**走査 1233 ファイル・124,819,095 バイト／本番マーカー 0 件／`service_role`・`SUPABASE_SERVICE_ROLE_KEY`・`ANTHROPIC_API_KEY`・`sk-ant-` いずれも 0 件**（anon キーは公開前提のため対象外＝その旨をスクリプトにも明記）。
+  - **スクリプトを2点直した**（実物で動かなかったため。spec §7.1 の趣旨は不変）: (1) `unzip` に `-o`（APK には同名エントリがあり、無いと対話プロンプトで止まる） (2) `grep` に `-a` と `|| true`（実体はバイナリ／不一致の終了コード1が `set -e` に拾われて途中で落ちていた）。あわせて秘密の文字列の検査を追加。
+- **5-4 Android の APK**: 手元ビルド（**EAS は使わない**）。`npx expo prebuild --platform android` → `./gradlew assembleRelease`。
+  - パス `android/app/build/outputs/apk/release/app-release.apk` ／ **サイズ 98,471,880 バイト（約 94 MB）** ／ profile **demo**（`.env.demo` を読み込んでビルド）。全 ABI を含む universal APK のため大きい。
+  - **署名**: 手元で作った鍵（`~/.grow-mobile-keys/grow-demo.keystore`）。**鍵もパスワードもリポジトリの外**（パスワードは `~/.gradle/gradle.properties`）。
+  - **申し送り**: `android/` は `.gitignore` 済み（prebuild の生成物）なので、署名設定の追記（`android/app/build.gradle`）は**コミットされない**。prebuild をやり直したら同じ追記が要る。恒久化するなら config plugin にする——ただし依存を足さない方針との兼ね合いがあるため、判断は人間に残す。
+- **5-5 iOS の動画**: `docs/verification/ios-demo-walkthrough.mp4`（**12分5秒**・67 MB・iPhone 17 Pro シミュレータ・**ビルド済みの Release アプリ**＝開発サーバー無し）。順序は 起動 → ログイン → ダッシュボード → 積み上げの入力 → 対話（深掘り9回＋確認）→ 結論 → 再起動して三層の数字が 1 になるところまで。範囲外の画面は映していない。デモ用アカウント（`demo-ios3@example.com`）で撮影しており、本人の個人情報は映っていない。
+  - **実機での撮影は行っていない**（本タスクでは本人用＝本番接続ビルドを作らない方針のため、実機に入れるビルドが無い）。**実機の動画は人間の作業として残る。**
+  - **長い**（12分）。ポートフォリオに出すなら短く切るべきで、切る作業は人間に残す。
+- **撮影のついでに見つけて直した**: **conclude のあとに三層の数字を取り直していなかった**（Web の `runConclude` は `loadStats` を呼ぶ）。その訪問の間だけ「結論ログ」が古い数のまま残っていた。取り直すよう修正（動画は修正前のビルドで撮っているため、動画の中では再起動して 1 になるところを見せている）。
+- **課金（段5 の合計）**: **対話 API 10 回**（撮影用の一周ぶん＝summarize 1・question 8・conclude 1）。5-0b と 5-1 の検証では対話 API を呼んでいない（0 回）。
+- **5-6 README**: 実績文言は正本 §0.10 の確定文言のまま。ストア未公開・iOS は動画／Android は APK・**接続先はデモ環境で Grow の実データではない**こと・設計の正は daily-report-app 側にあること・**iOS の署名は7日で切れる**ことを記載。
 
 ## 段5-0b の実装と Verification（2026-09-07）
 
