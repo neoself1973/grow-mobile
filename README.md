@@ -2,7 +2,7 @@
 
 **React Native（Expo）で iOS／Android のネイティブアプリを設計・実装。iOS は実機動作を動画で提示、Android は APK を配布。ストアには未公開。**
 
-Grow（[app.grow-app.jp](https://app.grow-app.jp) の仕事の振り返りサービス）のネイティブクライアントです。
+Grow（仕事の振り返りサービス）のネイティブクライアントです。
 既存の Next.js API と Supabase Auth を使う**別クライアント**で、Web を包む WebView の殻ではありません。
 
 - **Swift／Kotlin では書いていません**（React Native です）

@@ -22,7 +22,7 @@
 - **`npx expo start --web` での確認**（`npm run web:demo`）。**Xcode・Android SDK が未導入のため、実機／シミュレータでの確認は行っていない**——正本 §9 並走線 0-(g) のとおり道具が無い。iOS 実機は段5 で動画を撮るときに要る。
 - デモ環境に対して、新規メールで**登録 → 即ログイン状態（Confirm email オフ）→ オンボーディング5項目を保存 → ダッシュボード（段4 のプレースホルダ）へ到達**。
   デモ DB の `profiles` を本人の JWT で読み、`display_name='こんの' / industry='マーケティング・広告' / tone='consultant' / authority_level='manager' / context_note='火曜は終日…' / address_style='san'`（既定）を確認した。
-- `git grep` で本番マーカー（`qxiwiohtaopxqwhqkmsq`・`app.grow-app.jp`）が**1件**——`scripts/check-demo-build.sh` の検査対象リスト自体のみ。`.env.demo` は git 管理外。
+- `git grep` で本番マーカー（本番 Supabase の ref と本番ドメイン）が**1件**——`scripts/check-demo-build.sh` の検査対象リスト自体のみ。`.env.demo` は git 管理外。
 
 ## 段3 の Verification（実測・2026-09-07）
 
@@ -38,7 +38,7 @@
 
 - **結論済みの Grow日は再度 conclude できない**: アプリを再起動すると `conversations.messages` から会話と結論が復元され、入力欄は出ない（04 のスクリーンショット）。
 - **課金**: この一周で **summarize 1 + question 8 + conclude 1 = 10 回**の API 呼び出しが発生した（デモ用ワークスペースの鍵）。**通しの一周は1回のみ**。この他に、段2-A のスモークで 1 回、Web プレビューでの疎通試行で summarize 1 回（**CORS で失敗＝課金なし**）。
-- **本番マーカー** `qxiwiohtaopxqwhqkmsq` / `app.grow-app.jp` は `git grep` で **1件＝`scripts/check-demo-build.sh` の検査対象リストのみ**。
+- **本番マーカー**（本番 Supabase の ref と本番ドメイン。値は `scripts/check-demo-build.sh` が持つ）は `git grep` で **1件＝そのスクリプトの検査対象リストのみ**。文字列をこの2箇所以外に書かないことで、§12-7 の照合が曖昧にならないようにする。
 
 ### 実測で分かった制約（記録）
 
