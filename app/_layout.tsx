@@ -58,7 +58,11 @@ export default function RootLayout() {
       return
     }
     if (hasName === null) return // profiles の読み出し待ち
-    if (hasName && (inAuth || segments[0] === 'onboarding')) router.replace('/dashboard')
+    // ★入口（"/"＝segments[0] が undefined）も転送の対象に含める。含めないと、セッションが
+    //   復元された状態でアプリを起動したとき "/" の読み込み表示から先へ進まない
+    //   （2026-09-03 のシミュレータ実測で検出。Web は毎回サーバーが判定するため起きない）。
+    const atEntry = segments[0] === undefined
+    if (hasName && (inAuth || atEntry || segments[0] === 'onboarding')) router.replace('/dashboard')
     if (!hasName && segments[0] !== 'onboarding') router.replace('/onboarding')
   }, [ready, session, hasName, segments, router])
 
