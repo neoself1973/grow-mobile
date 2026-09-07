@@ -37,7 +37,7 @@ npm run web:demo            # ブラウザでの確認（Xcode / Android SDK が
 | | 本人用（`personal`） | 公開用（`demo`） |
 |---|---|---|
 | 接続先 | 本番 | **デモ環境のみ** |
-| 配布 | しない（本人の端末だけ） | GitHub Releases（段5） |
+| 配布 | しない（本人の端末だけ） | GitHub Releases（**公開リポジトリは未作成**。作成後に APK を置く） |
 | 設定 | `.env.prod` | `.env.demo` |
 
 公開前に `scripts/check-demo-build.sh <APK>` を通します。展開物に本番の Supabase プロジェクト ref と
@@ -50,6 +50,29 @@ npm run web:demo            # ブラウザでの確認（Xcode / Android SDK が
 走査対象ファイル数: 1233 ／ 総バイト数: 124,819,095
 本番マーカー: 0 件 ／ service_role・SUPABASE_SERVICE_ROLE_KEY・ANTHROPIC_API_KEY・sk-ant-: いずれも 0 件
 ```
+
+## ビルドし直すときの手順（Android）
+
+`android/` と `ios/` は `npx expo prebuild` の生成物で、**git 管理外**です。∴ 署名の設定もコミットされません。
+prebuild をやり直したら、次を入れ直してください（**恒久化する仕組みは置いていません**——再ビルドの機会が限られるため）。
+
+1. `npx expo prebuild --platform android`
+2. `android/app/build.gradle` の `signingConfigs` に公開用の設定を足し、`buildTypes.release` の `signingConfig` をそれに向ける
+   （`GROW_DEMO_STORE_FILE` などの Gradle プロパティを参照する形にする）
+3. ビルド:
+
+```sh
+cd android
+export ANDROID_HOME="$HOME/Library/Android/sdk"
+export JAVA_HOME=$(/usr/libexec/java_home -v 17)
+set -a; . ../.env.demo; set +a
+APP_PROFILE=demo ./gradlew assembleRelease
+# → app/build/outputs/apk/release/app-release.apk
+```
+
+**鍵とパスワードはリポジトリに置きません**。鍵は `~/.grow-mobile-keys/`、パスワードは `~/.gradle/gradle.properties` にあります（**値はここに書きません。置き場所だけ**）。
+
+APK は**分割していません**（全 CPU 向けを1本に収めた形。約94MB）。読み手が1つ落とせば済むほうを採っています。
 
 ## 使っているもの
 
