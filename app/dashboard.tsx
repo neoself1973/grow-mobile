@@ -56,6 +56,8 @@ export default function Dashboard() {
   // 三層の数字（正本 §6.1・§3 の「常設は静かな残高表示だけ」）。Web と同じ3クエリ・同じ定義。
   const [conclusionCount, setConclusionCount] = useState(0)
   const [confirmedCount, setConfirmedCount] = useState(0)
+  // 棚を出すかの判定に使う「勝ち筋の行数（status 不問）」。Web が同じ数で判定している。
+  const [winPatternCount, setWinPatternCount] = useState(0)
   const [predictionHits, setPredictionHits] = useState(0)
   const [statsLoaded, setStatsLoaded] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
@@ -150,6 +152,7 @@ export default function Dashboard() {
     setConclusionCount(concluded ?? 0)
     setPredictionHits(hits ?? 0)
     setConfirmedCount((wp ?? []).filter((w) => w.status === 'confirmed').length)
+    setWinPatternCount((wp ?? []).length)
     setStatsLoaded(true)
   }
 
@@ -313,8 +316,10 @@ export default function Dashboard() {
       {errorText && <Text style={[ui.error, { marginTop: 16 }]}>{errorText}</Text>}
 
       {/* 三層の「静かな棚」（正本 §3 の柱3＝常設は静かな残高表示だけ）。
-          何も無い新規ユーザーには出さない（うるさくしない）。演出・バッジ・streak は置かない。 */}
-      {statsLoaded && (conclusionCount > 0 || confirmedCount > 0) && (
+          何も無い新規ユーザーには出さない（うるさくしない）。演出・バッジ・streak は置かない。
+          ★出すかどうかは **Web と同じ条件**＝「結論0 かつ勝ち筋の行が0件（status 不問）」で隠す
+          （`app/dashboard/page.tsx:804`）。確定数で判定すると「結論0・仮説あり」で Web と割れる。 */}
+      {statsLoaded && (conclusionCount > 0 || winPatternCount > 0) && (
         <View style={{ marginTop: 20, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', backgroundColor: 'rgba(255,255,255,0.015)', paddingHorizontal: 18, paddingVertical: 16 }}>
           <Text style={{ color: colors.mint, fontSize: 11, letterSpacing: 2, marginBottom: 12 }}>これまでの蓄積</Text>
           <View style={{ flexDirection: 'row' }}>
