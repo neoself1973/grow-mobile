@@ -3,13 +3,16 @@ import { isAuthRetryableFetchError, type AuthError } from '@supabase/supabase-js
 // **Web の `lib/authErrorMessage.ts` からの転記**（正本 §0.10「文言は Web の確定文言をそのまま使う」）。
 // 中身を書き換えない・言い換えない。Web 側を直したらここも同じ内容にする。
 //
+// GENERIC_RETRY / OFFLINE は対話3経路（summarize・question・conclude）の失敗表示にも使う
+// （正本 §0.10「失敗したときの表示」＝新しい文言を作らない・この2文が唯一の出典）。
+//
 // 文言の原則（2026-08-16 裁定）:
 //   ・原因を特定できていない場面で原因を示唆しない（断定禁止）。5xx は一律「一時的に」へ倒す
 //   ・励まし・煽り・謝罪の重ね掛けを置かない。静かな1行
 //   ・ユーザーに「自分が間違えた」という誤った罪悪感を与えない
 
-const GENERIC_RETRY = '一時的に処理できませんでした。時間をおいてもう一度お試しください。'
-const OFFLINE = '通信に失敗しました。接続を確認して、もう一度お試しください。'
+export const GENERIC_RETRY = '一時的に処理できませんでした。時間をおいてもう一度お試しください。'
+export const OFFLINE = '通信に失敗しました。接続を確認して、もう一度お試しください。'
 const RATE_LIMITED = '短時間に何度も試行されました。しばらく待ってからお試しください。'
 
 function transportMessage(error: AuthError): string | null {
