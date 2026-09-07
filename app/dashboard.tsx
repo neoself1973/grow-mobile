@@ -13,6 +13,7 @@ import {
 } from '../lib/chatApi'
 import { GENERIC_RETRY, OFFLINE } from '../lib/authErrorMessage'
 import { clearDraft, loadDraft, saveDraft } from '../lib/draft'
+import { withTimeout } from '../lib/withTimeout'
 import { ui } from '../constants/ui'
 import { colors, ink } from '../constants/colors'
 
@@ -60,6 +61,8 @@ export default function Dashboard() {
   const [userId, setUserId] = useState<string | null>(null)
   // 短期レポートの生成の依頼を1マウント1回に制限する latch（連続レンダーでの多重 POST 防止）。
   const weeklyRequestedRef = useRef(false)
+  // 本人が入力欄に触れたか。遅れて返ってきた DB の結果で**入力を奪わない**ための印。
+  const userTouchedRef = useRef(false)
   const scrollRef = useRef<ScrollView>(null)
 
   const today = todayGrowDate()
@@ -70,37 +73,49 @@ export default function Dashboard() {
     let cancelled = false
     ;(async () => {
       try {
-        // ★getUser() は初回起動時、SecureStore からのセッション復元より先に呼ばれると null を返す。
-        //   さらに「null なら早期 return」にしていると `ready` が永久に false のままになり、
-        //   読み込み表示から進まない（2026-09-03 のシミュレータ実測で検出）。
-        //   セッションは復元済みのものを見る（getSession）＋ 失敗しても必ず ready にする。
+        // セッションの読み出しは端末内（SecureStore）で完結する＝ネットワークを待たない。
         const { data: { session } } = await supabase.auth.getSession()
         const user = session?.user
         if (!user) return
         setUserId(user.id)
-        const { data: report } = await supabase
-          .from('daily_reports')
-          .select('id, content')
-          .eq('user_id', user.id)
-          .eq('report_date', today)
-          .maybeSingle()
+
+        // ★① 下書きの復元は**ネットワークより先に、無条件で**行う（2026-09-07 段5-0b）。
+        //   AsyncStorage だけで完結するので、DB の応答を待つ理由が無い。圏外でも必ずここまで来る。
+        const draft = await loadDraft(user.id, today)
         if (cancelled) return
-        if (report) {
+        if (draft) setReportContent(draft)
+        // ここで画面を出す。以降の DB の読み出しは**待たせない**。
+        setReady(true)
+
+        // ★② DB の読み出しには時間の上限を置く（constants/app.ts）。超えたらそのまま入力できる状態に留まる。
+        const result = await withTimeout(
+          (async () => {
+            const { data: report } = await supabase
+              .from('daily_reports')
+              .select('id, content')
+              .eq('user_id', user.id)
+              .eq('report_date', today)
+              .maybeSingle()
+            if (!report) return { report: null as null, conv: null as null }
+            const { data: conv } = await supabase
+              .from('conversations')
+              .select('messages, phase')
+              .eq('report_id', report.id)
+              .maybeSingle()
+            return { report, conv }
+          })(),
+        )
+        if (cancelled) return
+
+        // ★③ 遅れて返ってきた結果で入力を奪わない。本人が入力欄に触れていたら差し替えない。
+        if (!result.timedOut && result.value?.report && !userTouchedRef.current) {
+          const { report, conv } = result.value
           setReportId(report.id as string)
           setReportContent(report.content as string)
           setReportSaved(true)
-          const { data: conv } = await supabase
-            .from('conversations')
-            .select('messages, phase')
-            .eq('report_id', report.id)
-            .maybeSingle()
-          if (cancelled) return
           if (conv?.phase === 'concluded') applyConversation(conv.messages as Record<string, unknown>)
-        } else {
-          // 保存前に落ちた入力を戻す（spec §11）。**戻したことを文言で知らせない。**
-          const draft = await loadDraft(user.id, today)
-          if (!cancelled && draft) setReportContent(draft)
         }
+
         await loadStats(user.id)
       } catch (e) {
         // 読めなくても画面は出す（入力はできる）。黙って読み込み表示のまま止めない。
@@ -318,7 +333,7 @@ export default function Dashboard() {
           <Text style={[ui.note, { marginBottom: 24 }]}>今日の仕事を、静かに書き出してみてください</Text>
           <TextInput
             value={reportContent}
-            onChangeText={setReportContent}
+            onChangeText={(v) => { userTouchedRef.current = true; setReportContent(v) }}
             style={[ui.input, { height: 220, textAlignVertical: 'top', lineHeight: 24 }]}
             placeholder={REPORT_PLACEHOLDER}
             placeholderTextColor={ink.placeholder}
