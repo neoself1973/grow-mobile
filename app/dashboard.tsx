@@ -273,6 +273,9 @@ export default function Dashboard() {
       setCardHeading(data.cardHeading ?? null)
       setAphorism(data.aphorism ?? null)
       setPhase('concluded')
+      // 結論のあとに三層の数字を取り直す（Web の runConclude も conclude 後に loadStats を呼ぶ）。
+      // 取り直さないと、この訪問の間だけ「結論ログ」が古い数のまま残る（2026-09-07 撮影時に気づいた）。
+      if (userId) await loadStats(userId)
       scrollBottom()
     } catch (e) {
       // ★Web の conclude にはエラー分岐が無い（500 でも何も出ない＝Web 側の不具合として

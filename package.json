@@ -24,8 +24,8 @@
   },
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "expo start --web",
     "start:demo": "set -a; . ./.env.demo; set +a; APP_PROFILE=demo expo start",
     "web:demo": "set -a; . ./.env.demo; set +a; APP_PROFILE=demo expo start --web",
