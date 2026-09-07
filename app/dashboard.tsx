@@ -6,10 +6,13 @@ import {
   ChatApiError,
   conclude as apiConclude,
   question as apiQuestion,
+  requestWeeklyGenerate,
   summarize as apiSummarize,
   type Aphorism,
   type ChatTurn,
 } from '../lib/chatApi'
+import { GENERIC_RETRY, OFFLINE } from '../lib/authErrorMessage'
+import { clearDraft, loadDraft, saveDraft } from '../lib/draft'
 import { ui } from '../constants/ui'
 import { colors, ink } from '../constants/colors'
 
@@ -49,6 +52,14 @@ export default function Dashboard() {
   const [aphorism, setAphorism] = useState<Aphorism | null>(null)
   // 失敗の表示。**直前の入力は state に残したまま**にする（永続化は段4）。
   const [errorText, setErrorText] = useState<string | null>(null)
+  // 三層の数字（正本 §6.1・§3 の「常設は静かな残高表示だけ」）。Web と同じ3クエリ・同じ定義。
+  const [conclusionCount, setConclusionCount] = useState(0)
+  const [confirmedCount, setConfirmedCount] = useState(0)
+  const [predictionHits, setPredictionHits] = useState(0)
+  const [statsLoaded, setStatsLoaded] = useState(false)
+  const [userId, setUserId] = useState<string | null>(null)
+  // 短期レポートの生成の依頼を1マウント1回に制限する latch（連続レンダーでの多重 POST 防止）。
+  const weeklyRequestedRef = useRef(false)
   const scrollRef = useRef<ScrollView>(null)
 
   const today = todayGrowDate()
@@ -66,6 +77,7 @@ export default function Dashboard() {
         const { data: { session } } = await supabase.auth.getSession()
         const user = session?.user
         if (!user) return
+        setUserId(user.id)
         const { data: report } = await supabase
           .from('daily_reports')
           .select('id, content')
@@ -84,7 +96,12 @@ export default function Dashboard() {
             .maybeSingle()
           if (cancelled) return
           if (conv?.phase === 'concluded') applyConversation(conv.messages as Record<string, unknown>)
+        } else {
+          // 保存前に落ちた入力を戻す（spec §11）。**戻したことを文言で知らせない。**
+          const draft = await loadDraft(user.id, today)
+          if (!cancelled && draft) setReportContent(draft)
         }
+        await loadStats(user.id)
       } catch (e) {
         // 読めなくても画面は出す（入力はできる）。黙って読み込み表示のまま止めない。
         console.error('load today failed:', e)
@@ -94,6 +111,32 @@ export default function Dashboard() {
     })()
     return () => { cancelled = true }
   }, [today])
+
+  // 三層の数字（Web の loadStats・`app/dashboard/page.tsx:383-398` と同じ3クエリ）。
+  // 新しい API は作らず、anon キー＋本人の JWT で Supabase を直接読む（RLS が本人の行だけに効く）。
+  async function loadStats(uid: string) {
+    // 結論ログ：確定した結論の累計
+    const { count: concluded } = await supabase
+      .from('conversations')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', uid)
+      .eq('phase', 'concluded')
+    // 読みが当たった回数：翌日の答え合わせ（やった＝当たった / ちょっと＝半分）を hit とみなす
+    const { count: hits } = await supabase
+      .from('next_action_feedback')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', uid)
+      .in('feedback_status', ['done', 'partially_done'])
+    // 勝ち筋（確定）：status='confirmed' の数
+    const { data: wp } = await supabase
+      .from('win_patterns')
+      .select('id, status')
+      .eq('user_id', uid)
+    setConclusionCount(concluded ?? 0)
+    setPredictionHits(hits ?? 0)
+    setConfirmedCount((wp ?? []).filter((w) => w.status === 'confirmed').length)
+    setStatsLoaded(true)
+  }
 
   // 保存済み会話を表示用に戻す（Web の hydrateConversation / applyConversation と同じ形。
   // 旧形式 question1..answer2 はネイティブに存在しないので新形式 turns だけを見る）。
@@ -108,6 +151,22 @@ export default function Dashboard() {
     setAphorism((m.aphorism as Aphorism) ?? null)
     setPhase('concluded')
   }
+
+  // 短期レポートの生成の引き金（正本 §0.10 (5)）。ダッシュボード到達時に1回だけ投げ、結果を待たない。
+  // 窓が完了していなければサーバーが {generated:false} を返すだけで、LLM は呼ばれない。
+  useEffect(() => {
+    if (!ready || !userId) return
+    if (weeklyRequestedRef.current) return
+    weeklyRequestedRef.current = true
+    void requestWeeklyGenerate()
+  }, [ready, userId])
+
+  // 下書きの自動保存（入力の変更時・デバウンス）。保存先は AsyncStorage（SecureStore には入れない）。
+  useEffect(() => {
+    if (!userId || reportSaved) return
+    const t = setTimeout(() => { void saveDraft(userId, today, reportContent) }, 500)
+    return () => clearTimeout(t)
+  }, [userId, today, reportContent, reportSaved])
 
   const scrollBottom = useCallback(() => {
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 50)
@@ -126,11 +185,16 @@ export default function Dashboard() {
       .maybeSingle()
     if (error || !data) {
       console.error('daily_reports upsert failed:', error)
-      setErrorText('一時的に処理できませんでした。時間をおいてもう一度お試しください。')
+      // 通信断は OFFLINE、それ以外は GENERIC_RETRY（正本 §0.10 の2文だけを使う）。
+      // supabase-js は fetch の失敗をそのまま message に載せる（'Network request failed' 等）。
+      const offline = /network request failed|failed to fetch|load failed/i.test(error?.message ?? '')
+      setErrorText(offline ? OFFLINE : GENERIC_RETRY)
       return
     }
     setReportId(data.id as string)
     setReportSaved(true)
+    // 保存できた時点で下書きを消す（結論の確定を待たない。spec §11「いつ消すか」）。
+    await clearDraft(user.id, today)
     await runSummarize()
   }
 
@@ -147,7 +211,7 @@ export default function Dashboard() {
       scrollBottom()
     } catch (e) {
       // 失敗しても積み上げ本文は消さない。保存済みなので、そのまま再試行できる。
-      setErrorText(e instanceof ChatApiError ? e.message : '一時的に処理できませんでした。時間をおいてもう一度お試しください。')
+      setErrorText(e instanceof ChatApiError ? e.message : GENERIC_RETRY)
       setPhase('idle')
     }
   }
@@ -201,7 +265,7 @@ export default function Dashboard() {
 
   // 失敗したら、送った回答を入力欄に戻して対話を続けられる状態にする（入力を失わない）。
   function recoverFromChatError(e: unknown, currentTurns: ChatTurn[], sentText: string, auto: boolean) {
-    setErrorText(e instanceof ChatApiError ? e.message : '一時的に処理できませんでした。時間をおいてもう一度お試しください。')
+    setErrorText(e instanceof ChatApiError ? e.message : GENERIC_RETRY)
     setTurns(currentTurns.slice(0, -1))
     if (!auto) setCurrentAnswer(sentText)
     setPhase('chatting')
@@ -232,6 +296,20 @@ export default function Dashboard() {
       </View>
 
       {errorText && <Text style={[ui.error, { marginTop: 16 }]}>{errorText}</Text>}
+
+      {/* 三層の「静かな棚」（正本 §3 の柱3＝常設は静かな残高表示だけ）。
+          何も無い新規ユーザーには出さない（うるさくしない）。演出・バッジ・streak は置かない。 */}
+      {statsLoaded && (conclusionCount > 0 || confirmedCount > 0) && (
+        <View style={{ marginTop: 20, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', backgroundColor: 'rgba(255,255,255,0.015)', paddingHorizontal: 18, paddingVertical: 16 }}>
+          <Text style={{ color: colors.mint, fontSize: 11, letterSpacing: 2, marginBottom: 12 }}>これまでの蓄積</Text>
+          <View style={{ flexDirection: 'row' }}>
+            <Shelf value={conclusionCount} label="結論ログ" color={ink.primary} />
+            {/* ★金を使うのはここだけ（§13 の列挙＝三層の数字のうち「勝ち筋（確定）」）。増やすと金が死ぬ。 */}
+            <Shelf value={confirmedCount} label="勝ち筋（確定）" color={colors.gold} />
+            <Shelf value={predictionHits} label="読みが当たった" color={colors.mint} />
+          </View>
+        </View>
+      )}
 
       {/* 積み上げの入力（まだ保存していないとき） */}
       {!reportSaved && (
@@ -387,5 +465,15 @@ export default function Dashboard() {
         </View>
       )}
     </ScrollView>
+  )
+}
+
+// 三層の数字の1つ分。数字と見出しだけを置く（Web の並び・文言のまま）。
+function Shelf({ value, label, color }: { value: number; label: string; color: string }) {
+  return (
+    <View style={{ flex: 1, alignItems: 'center' }}>
+      <Text style={{ color, fontSize: 24, fontWeight: '600' }}>{value}</Text>
+      <Text style={{ color: ink.faint, fontSize: 11, marginTop: 4 }}>{label}</Text>
+    </View>
   )
 }

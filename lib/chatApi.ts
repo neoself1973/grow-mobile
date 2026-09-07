@@ -83,6 +83,17 @@ export function question(args: {
   return postChat<QuestionResponse>('/api/chat/question', args)
 }
 
+// 短期レポートの生成の引き金（正本 §0.10 (5)）。**引数なし・結果を待たない**。
+// 窓（conclude 5回の固定区間）の判定はサーバーが行う＝クライアントは日付も何も渡さない。
+// 失敗しても画面に何も出さない（Web と同じ graceful。`app/dashboard/page.tsx:326-335`）。
+export async function requestWeeklyGenerate() {
+  try {
+    await postChat<{ generated: boolean; reason?: string }>('/api/weekly/generate', {})
+  } catch (e) {
+    console.error('short report generate request failed:', e)
+  }
+}
+
 export function conclude(args: {
   reportId: string
   reportContent: string
