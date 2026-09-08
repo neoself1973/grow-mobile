@@ -83,35 +83,43 @@
 
 差はちょうど**1ファイル・41バイト**＝注入したダミーそのもの。∴ **この検査は「在れば止まり、無ければ通る」**ことが実測で示された（前例＝2026-08-28 の課金文字列 grep の対照）。**ダミーはリポジトリに置いていない**（一時ディレクトリで作り、実験後に削除）。手順は上の表のとおりで、再現するときは APK の複製に本番 ref を含むファイルを1つ足すだけでよい。
 
-### 2. iOS の実機ビルド ＝ **未実施。前提が手元に無い**（人間の作業）
+### 2. iOS の実機ビルド ＝ **完了**（2026-09-08・demo 接続・実機で遮断確認も実施）
 
-**実測した前提の状態**:
+**入った実体**: `jp.growapp.mobile` ／ 表示名「Grow (demo)」 ／ **Release**（JS 同梱＝開発サーバー無しで起動する。停止して実測） ／ 端末 iPhone 15（iOS 26.6.1） ／ 署名 `Apple Development: mkt@twothree-inc.com`（**無料の個人チーム**・Team `NT95B9SDV3`・プロビジョニングは端末1台）。**接続先はデモ環境のみ。本番接続のビルドは作っていない**（`.env.prod` も無い）。**署名は7日で切れる。**
 
-- `xcrun devicectl list devices` → **No devices found**（iPhone がこの Mac に繋がっていない）
-- `security find-identity -v -p codesigning` → **0 valid identities found**（Xcode に Apple ID が入っておらず、無料の個人チームの証明書が無い）
+**手順（次回も同じ。人間の操作が要る箇所を明記）**:
 
-∴ **実機ビルドは、Apple ID のサインイン（パスワード入力）と端末の接続・信頼が要るため、Claude Code では実行できない。** 以下の手順で人間が行う。**本番接続のビルドは作らない**（`.env.prod` は作っていない・demo プロファイルのみ）。
-
-1. iPhone を Mac に USB で接続し、端末側で「このコンピュータを信頼」。
-2. Xcode を開き、**Settings → Accounts** で本人の Apple ID を追加（**Apple Developer Program には登録しない**＝無料の個人チームを使う）。
-3. `open ios/Growdemo.xcworkspace` → ターゲット `Growdemo` → **Signing & Capabilities** → *Automatically manage signing* を入れ、**Team に個人チーム（Personal Team）**を選ぶ。
-   - Bundle Identifier が衝突したら `jp.growapp.mobile.<任意の接尾辞>` のように変えてよい（demo ビルドなので影響しない）。
-4. 端末を選んでビルド＆実行。CLI なら:
+1. 【人間】iPhone を USB 接続 →「このコンピュータを信頼」。
+2. 【人間】Xcode → Settings → Accounts に Apple ID を追加（**Developer Program には登録しない**）。`security find-identity -v -p codesigning` に `Apple Development: …` が1件出れば準備完了。
+3. 【人間】**iPhone の `設定` → `プライバシーとセキュリティ` → `デベロッパモード` をオン → 再起動**。これを忘れると `xcodebuild` が `Developer Mode disabled` で止まる（今回1度踏んだ）。`xcrun devicectl list devices` の State が `connected (no DDI)` から `connected` に変われば有効。
+4. 【機械】ビルドと導入:
 
 ```sh
 cd ~/grow-mobile
 set -a; . ./.env.demo; set +a
-APP_PROFILE=demo LANG=en_US.UTF-8 npx expo run:ios --configuration Release --device
+APP_PROFILE=demo LANG=en_US.UTF-8 npx expo run:ios --configuration Release --device 00008120-001C31163E44A01E
+# ↑ UDID は `xcrun xctrace list devices` の値（devicectl の Identifier とは別物。devicectl の UUID を渡すと No device matching で落ちる）
 ```
 
-5. 実行後は**開発サーバーを止めてよい**（Release は JS を同梱するため単体で起動する）。シミュレータでは実測済み（段5 の記録）。
-6. **署名は7日で切れる**。切れたら同じ手順で入れ直す。
-7. 実機で1回、**遮断状態からの起動**を確認する（ホスト名は保ったままポートを塞ぐ。`EXPO_PUBLIC_SUPABASE_URL="https://<demo ref>.supabase.co:9"` を渡してビルドし直し、入力画面に到達して下書きが戻ることを見る。**ホスト名は変えないこと**＝変えるとセッション保存キーが変わり別の現象になる）。シミュレータのビルド済みアプリでは実測済み（`16-built-app-offline-draft.png`）。
+5. 【人間】ビルド中にキーチェーンの解錠を求められる → **Mac のログインパスワード**を入れ、**「常に許可」**（「許可」だと署名のたびに止まる）。
+6. 【機械・★重要】**同梱フレームワークの再署名**。`hermesvm` / `React` / `ExpoFont` / `ExpoModulesJSI` の4つが**未署名のまま出力され**、インストールが `ApplicationVerificationFailed`（`No code signature found` on `hermesvm.framework`）で弾かれた。同じ証明書で署名し直してから入れる:
+
+```sh
+APP=~/Library/Developer/Xcode/DerivedData/Growdemo-*/Build/Products/Release-iphoneos/Growdemo.app
+ID=$(security find-identity -v -p codesigning | awk 'NR==1{print $2}')
+for f in "$APP"/Frameworks/*.framework; do codesign --force --timestamp=none --sign "$ID" "$f"; done
+codesign --force --sign "$ID" "$APP"
+xcrun devicectl device install app --device <devicectl の Identifier> "$APP"
+```
+
+7. 【人間】初回起動時の「信頼されていないデベロッパ」→ iPhone の `設定` → `一般` → `VPNとデバイス管理` → `Apple Development: …` → **信頼**（この確認には通信が要る＝機内モードでは失敗する）。
+
+**実機での遮断確認（2026-09-08・機内モードで実施＝代用ではない本物の遮断）**: ログイン → 入力欄に数文字（**送信はしない**）→ アプリ完全終了 → **機内モードオン** → 起動。結果は3点とも OK——(1) **数秒で入力画面が出た**（読み込み表示のまま止まらない） (2) **書きかけの文字が入力欄に戻っていた** (3) **新しい文言は出ていない**。機内モードを戻して通常動作も確認し、ログアウトまで実施。**この確認で対話 API は 0 回**（DB で実測: Grow日 2026-09-08 の `daily_reports` は 0 行＝送信されていない）。
 
 ### 3. 撮影の準備（**一周は通していない＝課金 0 回**）
 
 - 動画は**新しいデモアカウント**で撮り直す（決定ログ 2026-09-07）。**アカウントの作成と一周は人間が録画しながら行う**ため、Claude Code はここで**登録も対話もしていない**（数字が入ってしまうため）。
-- **録画を始められる状態**にしてある: シミュレータの demo ビルドは**未ログインの起動画面**（`17-recording-ready-signed-out.png`）。実機は上の手順で入れたあと、同じく未ログインの状態から撮り始められる。
+- **録画を始められる状態にした**: **実機**に demo ビルドが入り、遮断確認のあとログアウト済み＝**未ログインの起動画面**。シミュレータ側も同じ状態（`17-recording-ready-signed-out.png`）。
 - **現行の `docs/verification/ios-demo-walkthrough.mp4`（12分5秒）は消さずに記録として残す。README とポートフォリオからは参照しない**（`782d954` の是正前の挙動を映しており、現在は存在しない動きが含まれるため）。
 
 ### 4. Android の署名手順（明文化のみ・仕組み化はしない）

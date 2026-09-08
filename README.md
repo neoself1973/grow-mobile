@@ -74,6 +74,33 @@ APP_PROFILE=demo ./gradlew assembleRelease
 
 APK は**分割していません**（全 CPU 向けを1本に収めた形。約94MB）。読み手が1つ落とせば済むほうを採っています。
 
+## ビルドし直すときの手順（iOS 実機）
+
+無料の個人チームで自分の iPhone に入れます（**Apple Developer Program には登録しません。署名は7日で切れます**）。
+
+1. iPhone を接続して信頼 → **iPhone の `設定` → `プライバシーとセキュリティ` → `デベロッパモード` をオン**（要再起動）
+2. Xcode に Apple ID を追加（Settings → Accounts）
+3. ビルドと導入:
+
+```sh
+cd ~/grow-mobile
+set -a; . ./.env.demo; set +a
+APP_PROFILE=demo LANG=en_US.UTF-8 npx expo run:ios --configuration Release --device <UDID>
+# UDID は `xcrun xctrace list devices` の値
+```
+
+4. **同梱フレームワークの再署名が要ります**（`hermesvm` などが未署名で出力され、インストールが `ApplicationVerificationFailed` になるため）:
+
+```sh
+APP=~/Library/Developer/Xcode/DerivedData/Growdemo-*/Build/Products/Release-iphoneos/Growdemo.app
+ID=$(security find-identity -v -p codesigning | awk 'NR==1{print $2}')
+for f in "$APP"/Frameworks/*.framework; do codesign --force --timestamp=none --sign "$ID" "$f"; done
+codesign --force --sign "$ID" "$APP"
+xcrun devicectl device install app --device <device id> "$APP"
+```
+
+5. 初回だけ iPhone 側で `設定` → `一般` → `VPNとデバイス管理` からデベロッパを**信頼**
+
 ## 使っているもの
 
 | パッケージ | 用途 |
