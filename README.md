@@ -29,15 +29,15 @@ npm run web:demo            # ブラウザでの確認（Xcode / Android SDK が
 
 ## 触れるもの（配布物）
 
-- **Android**: `app-release.apk`（demo プロファイル・手元ビルド）。**接続先はデモ環境**で、Grow の実データではありません。読み手はご自分のアカウントを作って触れます。
-- **iOS**: 実機で動かしているところを**動画**で提示します。**ストアには公開していません。** iOS の実機に入れる署名は Xcode の**無料の個人チーム**で行うため、**7日で切れます**（切れたら入れ直しが要ります）。Apple Developer Program には登録していません。
+- **Android**: [Releases の v0.1.0](https://github.com/neoself1973/grow-mobile/releases/tag/v0.1.0) から `app-release.apk` を取得できます（demo プロファイル・手元ビルド）。**接続先はデモ環境**で、Grow の実データではありません。読み手はご自分のアカウントを作って触れます。
+- **iOS**: 実機で動かしているところを**動画**で提示します — [`docs/verification/ios-device-walkthrough.mp4`](docs/verification/ios-device-walkthrough.mp4)（51秒）。**ストアには公開していません。** iOS の実機に入れる署名は Xcode の**無料の個人チーム**で行うため、**7日で切れます**（切れたら入れ直しが要ります）。Apple Developer Program には登録していません。
 
 ## ビルド2系統
 
 | | 本人用（`personal`） | 公開用（`demo`） |
 |---|---|---|
 | 接続先 | 本番 | **デモ環境のみ** |
-| 配布 | しない（本人の端末だけ） | GitHub Releases（**公開リポジトリは未作成**。作成後に APK を置く） |
+| 配布 | しない（本人の端末だけ） | [GitHub Releases](https://github.com/neoself1973/grow-mobile/releases/tag/v0.1.0) |
 | 設定 | `.env.prod` | `.env.demo` |
 
 公開前に `scripts/check-demo-build.sh <APK>` を通します。展開物に本番の Supabase プロジェクト ref と

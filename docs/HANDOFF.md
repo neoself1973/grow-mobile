@@ -9,7 +9,15 @@
 
 ---
 
-## 現在地（2026-09-07・段5 の締めまで完了。**iOS 実機・録画・push・公開は人間の作業**）
+## 現在地（2026-09-09・**公開まで完了**）
+
+- **公開リポジトリ**: https://github.com/neoself1973/grow-mobile （Public・push 済み）
+- **リリース**: https://github.com/neoself1973/grow-mobile/releases/tag/v0.1.0 「v0.1.0 — Android 版（デモ環境に接続）」・Latest・**APK 添付済み**（人間が Releases 画面から添付）
+- **動画**: `docs/verification/ios-device-walkthrough.mp4`（51.4秒・実機を QuickTime で収録）。README から参照している
+- **認証の記録**: この Mac は Xcode 同梱 git の `osxkeychain` が有効で、`github.com` の資格情報が `two-three-co` で保存されていた。そのため `neoself1973` のリポジトリへの push が 403 になり、**人間が `neoself1973` の個人アクセストークンで push した**（remote は `https://neoself1973@github.com/neoself1973/grow-mobile.git`）。**トークンの値はチャットにも記録にも残していない。**
+- **残っているもの**: 無し（段5 完了）。iOS の署名は7日で切れるため、実機で見せる機会があるたびに入れ直しが要る。
+
+## 段5 の締めまでの記録（2026-09-07）
 
 段5-0b（オフラインの是正）・5-1（棚の条件）・5-2（ビルド2系統）・5-3（§12-7 の機械照合）・5-4（APK）・5-5（動画）・5-6（README）まで完了。
 **残っているのは人間の作業**: GitHub リポジトリの作成と remote 設定・push・Releases への APK の公開・iOS 実機への配置（無料個人チームの署名は7日で切れる）。
